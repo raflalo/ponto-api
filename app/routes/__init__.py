@@ -1,0 +1,1 @@
+"""Blueprints HTTP da API."""
