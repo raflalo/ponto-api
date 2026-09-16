@@ -22,6 +22,8 @@ class User(db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(255), nullable=False, unique=True, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    daily_goal_minutes = db.Column(db.Integer, nullable=False, default=480, server_default="480")
+    punch_revision = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
     punches = db.relationship(
         "Punch",
@@ -50,6 +52,7 @@ class User(db.Model):
             "id": self.id,
             "name": self.name,
             "email": self.email,
+            "daily_goal_minutes": self.daily_goal_minutes,
             "created_at": created_at.astimezone(timezone.utc).isoformat(),
         }
 

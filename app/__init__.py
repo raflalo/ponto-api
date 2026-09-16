@@ -8,7 +8,10 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 from .errors import register_error_handlers
+from .configuration import jwt_secret
 from .extensions import db
+from .migrations import upgrade_database
+from .openapi import DEFINITIONS
 from .routes.auth import auth_blueprint
 from .routes.profile import profile_blueprint
 from .routes.punches import punches_blueprint
@@ -17,21 +20,20 @@ from .routes.punches import punches_blueprint
 def create_app(test_config: dict | None = None) -> Flask:
     """Cria uma instância configurada da API e inicializa suas extensões."""
 
-    app = Flask(__name__, instance_relative_config=True)
+    app = Flask(__name__, instance_relative_config=True,
+                instance_path=(test_config or {}).get("INSTANCE_PATH"))
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     default_database = Path(app.instance_path) / "ponto_plus.db"
     app.config.from_mapping(
         SQLALCHEMY_DATABASE_URI=os.getenv("DATABASE_URL", f"sqlite:///{default_database}"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
-        JWT_SECRET_KEY=os.getenv(
-            "JWT_SECRET_KEY",
-            "dev-only-change-this-secret-before-production",
-        ),
+        JWT_SECRET_KEY=os.getenv("JWT_SECRET_KEY"),
         JWT_EXPIRES_HOURS=24,
         SWAGGER={"title": "Ponto+ API", "uiversion": 3},
     )
     if test_config:
         app.config.update(test_config)
+    app.config["JWT_SECRET_KEY"] = jwt_secret(app.instance_path, app.config["JWT_SECRET_KEY"])
 
     db.init_app(app)
     CORS(
@@ -44,6 +46,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         app,
         template={
             "swagger": "2.0",
+            "consumes": ["application/json"],
+            "produces": ["application/json"],
+            "definitions": DEFINITIONS,
             "info": {
                 "title": "Ponto+ API",
                 "description": "API para autenticação, perfil e registro pessoal de jornada.",
@@ -70,12 +75,14 @@ def create_app(test_config: dict | None = None) -> Flask:
         ---
         tags: [Sistema]
         responses:
-          200: {description: API disponível}
+          200: {description: API disponível, schema: {$ref: '#/definitions/Health'}}
+          500: {description: Erro interno, schema: {$ref: '#/definitions/Error'}}
         """
 
         return jsonify({"status": "ok"})
 
     with app.app_context():
         db.create_all()
+        upgrade_database()
 
     return app

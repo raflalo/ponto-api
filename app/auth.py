@@ -37,6 +37,7 @@ def require_auth(view):
                 token,
                 current_app.config["JWT_SECRET_KEY"],
                 algorithms=["HS256"],
+                options={"require": ["sub", "iat", "exp"]},
             )
             user_id = int(payload["sub"])
         except jwt.ExpiredSignatureError as error:

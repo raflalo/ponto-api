@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from ..errors import ApiError
 from ..extensions import db
@@ -76,23 +76,53 @@ def journey_state(punches: list[Punch], now: datetime | None = None) -> dict:
     }
 
 
-def register_next_punch(user: User, now: datetime | None = None) -> Punch:
+def lock_journey(user: User, revision: int | None) -> User:
+    """Serializa leitura e escrita no SQLite, inclusive entre processos/abas."""
+
+    user_id = user.id
+    db.session.rollback()
+    db.session.execute(text("BEGIN IMMEDIATE"))
+    user = db.session.get(User, user_id)
+    if revision is not None and revision != user.punch_revision:
+        raise ApiError("A jornada mudou em outra sessão. Confira os dados atualizados antes de continuar.", 409, "stale_journey")
+    return user
+
+
+def today_snapshot(user: User, now: datetime, punches: list[Punch] | None = None) -> dict:
+    """Publica o estado completo e sua revisão, sem depender de cálculos do cliente."""
+
+    day = now.astimezone(TIME_ZONE).date()
+    records = punches if punches is not None else punches_for_day(user.id, day)
+    return {"date": day.isoformat(), "punches": [item.to_dict() for item in records],
+            "revision": user.punch_revision, **journey_state(records, now)}
+
+
+def register_next_punch(user: User, now: datetime | None = None, revision: int | None = None,
+                        expected_date: str | None = None) -> dict:
     """Registra somente a próxima batida válida, usando o relógio do servidor."""
 
+    user = lock_journey(user, revision)
     now = now or utc_now()
     local_day = now.astimezone(TIME_ZONE).date()
+    if expected_date is not None and expected_date != local_day.isoformat():
+        raise ApiError("O dia mudou. Confira a jornada atualizada antes de registrar.", 409, "stale_journey")
     punches = punches_for_day(user.id, local_day)
     if len(punches) >= len(PUNCH_TYPES):
         raise ApiError("A jornada de hoje já foi encerrada.", 409, "journey_finished")
     punch = Punch(user_id=user.id, type=PUNCH_TYPES[len(punches)], occurred_at=now)
     db.session.add(punch)
+    user.punch_revision += 1
+    db.session.flush()
+    response = {"punch": punch.to_dict(), "today": today_snapshot(user, now, punches + [punch]),
+                "server_time": now.isoformat()}
     db.session.commit()
-    return punch
+    return response
 
 
-def delete_last_punch(user: User, punch_id: int, now: datetime | None = None) -> None:
+def delete_last_punch(user: User, punch_id: int, now: datetime | None = None, revision: int | None = None) -> None:
     """Desfaz apenas a última batida, durante a janela de cinco segundos."""
 
+    user = lock_journey(user, revision)
     now = now or utc_now()
     punch = db.session.get(Punch, punch_id)
     if punch is None:
@@ -109,4 +139,5 @@ def delete_last_punch(user: User, punch_id: int, now: datetime | None = None) ->
     if (now.astimezone(UTC) - occurred_at.astimezone(UTC)).total_seconds() > UNDO_WINDOW_SECONDS:
         raise ApiError("O prazo de 5 segundos para desfazer terminou.", 409, "undo_window_expired")
     db.session.delete(punch)
+    user.punch_revision += 1
     db.session.commit()
