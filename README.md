@@ -60,9 +60,9 @@ Para apenas executar, `requirements.txt` contém as dependências de execução;
 python run.py
 ```
 
-- API: `http://127.0.0.1:5000`
-- Swagger: `http://127.0.0.1:5000/apidocs`
-- Especificação JSON: `http://127.0.0.1:5000/apispec_1.json`
+- API: `http://127.0.0.1:5001`
+- Swagger: `http://127.0.0.1:5001/apidocs`
+- Especificação JSON: `http://127.0.0.1:5001/apispec_1.json`
 - Banco local: `instance/ponto_plus.db`
 
 Após alterações no back-end, encerre somente o processo desta API e execute-o novamente. Não recrie o banco: a inicialização acrescenta `daily_goal_minutes` e `punch_revision` em bancos antigos. Usuários anteriores recebem meta inicial de 480 minutos.
@@ -132,7 +132,7 @@ A configuração exige **100% de cobertura das instruções Python de `app/`**, 
 ## Problemas comuns
 
 - **Não conecta:** confirme que a API está ativa e que `/api/health` responde `{"status":"ok"}`.
-- **Porta ocupada:** identifique o processo; não encerre serviços do sistema indiscriminadamente. A SPA deste MVP usa a porta 5000.
+- **Porta ocupada:** identifique o processo; não encerre serviços do sistema indiscriminadamente. A SPA deste MVP usa a porta 5001 para evitar conflito com o Receptor AirPlay do macOS na porta 5000.
 - **Sessão inválida depois de atualizar:** entre novamente. A conta e o histórico não foram removidos.
 - **Chave rejeitada:** remova a configuração de exemplo ou defina uma chave própria válida. Sem configuração externa, a API cria a chave local automaticamente.
 - **Jornada desatualizada:** outra aba mudou as batidas ou virou o dia. Confira a sequência atual antes de clicar novamente.
