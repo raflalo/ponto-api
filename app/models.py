@@ -1,9 +1,6 @@
 """Modelos persistidos no SQLite pela API Ponto+."""
-
 from datetime import datetime, timezone
-
 from werkzeug.security import check_password_hash, generate_password_hash
-
 from .extensions import db
 
 
