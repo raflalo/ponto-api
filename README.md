@@ -31,7 +31,12 @@ Instale as dependências:
 python -m pip install -r requirements.txt
 ```
 
-Não é necessária configuração adicional. Na primeira execução, a aplicação cria automaticamente o banco de dados e uma chave local de autenticação.
+Não é necessária configuração adicional. Na primeira execução, a aplicação cria automaticamente um banco de dados com a conta demo e 236 registros fictícios, além de uma chave local de autenticação. Um banco existente é preservado.
+
+## Conta demo
+
+- E-mail: `teste@teste.com`
+- Senha: `Teste123!`
 
 ## Execução
 

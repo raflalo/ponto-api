@@ -9,6 +9,7 @@ from flask_cors import CORS
 
 from .errors import register_error_handlers
 from .configuration import jwt_secret
+from .demo_seed import seed_demo_history
 from .extensions import db
 from .migrations import upgrade_database
 from .openapi import DEFINITIONS
@@ -34,6 +35,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
     app.config["JWT_SECRET_KEY"] = jwt_secret(app.instance_path, app.config["JWT_SECRET_KEY"])
+    fresh_install = app.config["SQLALCHEMY_DATABASE_URI"] == f"sqlite:///{default_database}" and not default_database.exists()
 
     db.init_app(app)
     CORS(
@@ -84,5 +86,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     with app.app_context():
         db.create_all()
         upgrade_database()
+        if fresh_install:
+            seed_demo_history()
 
     return app

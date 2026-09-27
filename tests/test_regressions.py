@@ -93,6 +93,36 @@ def test_local_secret_is_private_persistent_and_not_public(tmp_path, monkeypatch
             db.engine.dispose()
 
 
+def test_fresh_install_includes_demo_and_preserves_existing_data(tmp_path, monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    config = {"TESTING": True, "INSTANCE_PATH": str(tmp_path)}
+    first = create_app(config)
+    client = first.test_client()
+    login = client.post("/api/auth/login", json={"email": "teste@teste.com", "password": "Teste123!"})
+    assert login.status_code == 200
+    headers = {"Authorization": "Bearer " + login.json["token"]}
+    history = [client.get(f"/api/punches?month=2026-{month:02d}", headers=headers) for month in (7, 8, 9)]
+    assert all(response.status_code == 200 for response in history)
+    assert sum(len(response.json["punches"]) for response in history) == 236
+    with first.app_context():
+        assert db.session.query(User).count() == 1
+        assert db.session.query(Punch).count() == 236
+
+    assert client.post("/api/auth/register", json={
+        "name": "Outra pessoa", "email": "outra@example.com", "password": "senha123",
+    }).status_code == 201
+    with first.app_context():
+        db.session.remove()
+        db.engine.dispose()
+
+    second = create_app(config)
+    with second.app_context():
+        assert db.session.query(User).count() == 2
+        assert db.session.query(Punch).count() == 236
+        db.session.remove()
+        db.engine.dispose()
+
+
 @pytest.mark.parametrize("secret", ["short", "dev-only-change-this-secret-before-production", "troque-por-uma-chave-longa-e-aleatoria"])
 def test_insecure_configured_secret_is_rejected(tmp_path, secret):
     with pytest.raises(ValueError):
